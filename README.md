@@ -17,3 +17,4 @@ Kamera funguje jen přes HTTPS. Rychlosti jsou orientační a nemají právní v
 - **v0.10** (`/v10/`): Dohled pěšky/za jízdy, přestupky s přesným časem, GPS a adresou, směr jízdy, přejetí čar i při pohybu, pozorování vozidel, záložka Přehled funkcí.
 - **v0.11** (`/v11/`): semafor (červená/oranžová/zelená, jízda na červenou přes stop čáru), dopravní značky (omezení rychlosti OCR, STOP, dej přednost, hlavní silnice, zákaz vjezdu), varování řidiče.
 - **v0.12** (`/v12/`): vlastní rychlost z pozadí (pohled shora na silnici, korelace posunu) + ruční zadání a kalibrace, takže rychlost aut před vámi je absolutní, ne relativní; přísnější neznámé překážky (stín a skvrny se ignorují, vypnuto ve výchozím stavu); poplach překážky jako průhledné červené označení přímo ve videu.
+- **v0.13** (`/v13/`): detektor YOLOX (nano/tiny/s, ONNX Runtime Web, licence Apache 2.0) vedle COCO-SSD, volba „obě“ spojí výsledky; váhy modelů jsou v `oko/models/` (jen v repozitáři nase-tv-web).
