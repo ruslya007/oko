@@ -10,3 +10,5 @@ Webová aplikace, která přes kameru telefonu rozpoznává objekty, odhaduje ry
 - `v6/` – v0.6: tři režimy (Doma, Jedu autem, Ochrana perimetru), lepicí zmenšitelné okno videa, automatické hledání linií, hlídání pohybu s nahráváním klipů, databáze událostí s hodnocením a CSV
 
 Kamera funguje jen přes HTTPS. Rychlosti jsou orientační a nemají právní váhu; analýza činnosti není zdravotnický prostředek.
+
+- **v0.7** (`/v7/`): učení klepnutím do videa je ve výchozím stavu vypnuté (zapíná se zaškrtnutím); gesta rukou – OK, palec nahoru/dolů, prostředník, V, pěst, dlaň, ukazování, rohy, modlitba, signál o pomoc (dlaň s palcem dovnitř → pěst); události s potvrzením a učením z oprav.
