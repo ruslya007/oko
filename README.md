@@ -5,5 +5,6 @@ Webová aplikace, která přes kameru telefonu rozpoznává objekty, odhaduje ry
 - `index.html` – v0.1: detekce objektů (COCO-SSD, 80 tříd) a rychlost mezi dvěma branami
 - `v2/` – v0.2: 3D odhad rychlosti podle výšky vozu, galerie vozidel, učení z potvrzených modelů
 - `v3/` – v0.3: přepínání kamer, nahrávání, analýza činnosti člověka (pozice, pád, gesta, chůze) s učením z potvrzení
+- `v4/` – v0.4: klepnutí nebo obtažení neznámého předmětu ve videu, návrhy názvu (moje databáze, vozidla, detektor, ImageNet), vlastní databáze naučených věcí, hledání a automatický sběr vzorků
 
 Kamera funguje jen přes HTTPS. Rychlosti jsou orientační a nemají právní váhu; analýza činnosti není zdravotnický prostředek.
