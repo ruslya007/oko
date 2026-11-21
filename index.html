@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Silniční oko – pilot v0.1</title>
+<style>
+  :root{--bg:#0e1116;--card:#171c24;--line:#2a323f;--txt:#e8ecf2;--mut:#8b95a5;--acc:#ffb020;--ok:#3ddc84}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+       padding:max(10px,env(safe-area-inset-top)) max(10px,env(safe-area-inset-right)) max(14px,env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left))}
+  header{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;margin-bottom:8px}
+  h1{font-size:18px;margin:0} h1 small{color:var(--mut);font-weight:400;font-size:12px}
+  #status{color:var(--mut);font-size:13px}
+  #wrap{position:relative;background:#000;border-radius:10px;overflow:hidden;border:1px solid var(--line)}
+  canvas{display:block;width:100%;height:auto;touch-action:manipulation}
+  #chip{padding:6px 10px;font-size:13px;color:var(--ok);min-height:30px}
+  .row{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0;align-items:center}
+  button,.btn{background:var(--card);color:var(--txt);border:1px solid var(--line);border-radius:9px;padding:10px 13px;font:inherit;cursor:pointer}
+  button.pri{background:var(--acc);color:#1a1200;border-color:var(--acc);font-weight:600}
+  button.on{outline:2px solid var(--acc)}
+  label{color:var(--mut);font-size:13px;display:flex;align-items:center;gap:6px}
+  input[type=number]{width:70px;background:var(--card);color:var(--txt);border:1px solid var(--line);border-radius:7px;padding:7px}
+  select{background:var(--card);color:var(--txt);border:1px solid var(--line);border-radius:7px;padding:7px}
+  input[type=range]{width:130px}
+  section{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin-top:10px}
+  h2{font-size:14px;margin:0 0 4px;color:var(--mut);font-weight:600}
+  ol{margin:0;padding-left:20px;font-size:14px} li b{color:var(--acc)}
+  .note{color:var(--mut);font-size:12.5px;margin-top:10px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Silniční oko <small>pilot v0.1</small></h1>
+  <div id="status">Načítám model…</div>
+</header>
+
+<div id="wrap"><canvas id="view" width="640" height="360"></canvas></div>
+<div id="chip">Zatím nic nevidím.</div>
+
+<div class="row">
+  <button id="bCam" class="pri">▶ Kamera</button>
+  <label class="btn" style="color:var(--txt)">📁 Video<input id="file" type="file" accept="video/*" hidden></label>
+  <button id="bCal">📐 Kalibrace</button>
+  <button id="bClr">✖ Brány</button>
+</div>
+<div class="row">
+  <label>Vzdálenost bran <input id="dist" type="number" value="20" min="1" step="0.5"> m</label>
+  <label>Model
+    <select id="mdl"><option value="lite_mobilenet_v2">rychlý</option><option value="mobilenet_v2">přesnější</option></select>
+  </label>
+</div>
+<div class="row">
+  <label><input id="night" type="checkbox"> Noční zesílení</label>
+  <input id="gam" type="range" min="1" max="3.5" step="0.1" value="2.2">
+</div>
+
+<section><h2>Naměřené rychlosti</h2><ol id="log"><li style="list-style:none;color:var(--mut)">zatím žádné</li></ol></section>
+
+<p class="note">
+  <b>Jak měřit rychlost:</b> postav telefon pevně (stativ) a kolmo na silnici. Klepni „Kalibrace“ a vyznač dvě čáry napříč vozovkou
+  (brána A = 2 body, brána B = 2 body) na zemi, ideálně 20–30 m od sebe. Zadej skutečnou vzdálenost. Rychlost = vzdálenost / čas mezi
+  přejetím obou bran spodním středem auta. Hodnota je orientační, nemá právní váhu.
+  Rozpoznává 80 tříd COCO (člověk, kočka, láhev, auto, pes, hrnek, mobil…). Obraz se zpracovává jen v zařízení, nic se neodesílá.
+</p>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const CZ = {person:'člověk',bicycle:'kolo',car:'auto',motorcycle:'motorka',bus:'autobus',truck:'nákladní auto','traffic light':'semafor','fire hydrant':'hydrant','stop sign':'značka STOP',bench:'lavička',bird:'pták',cat:'kočka',dog:'pes',horse:'kůň',sheep:'ovce',cow:'kráva',backpack:'batoh',umbrella:'deštník',handbag:'kabelka',suitcase:'kufr',bottle:'láhev','wine glass':'sklenice',cup:'hrnek',fork:'vidlička',knife:'nůž',spoon:'lžíce',bowl:'miska',banana:'banán',apple:'jablko',sandwich:'sendvič',orange:'pomeranč',pizza:'pizza',cake:'dort',chair:'židle',couch:'gauč','potted plant':'květina',bed:'postel','dining table':'stůl',toilet:'WC',tv:'televize',laptop:'notebook',mouse:'myš',remote:'ovladač',keyboard:'klávesnice','cell phone':'mobil',microwave:'mikrovlnka',oven:'trouba',sink:'dřez',refrigerator:'lednice',book:'kniha',clock:'hodiny',vase:'váza',scissors:'nůžky','teddy bear':'plyšák',toothbrush:'kartáček',skateboard:'skateboard',ball:'míč','sports ball':'míč',kite:'drak',frisbee:'frisbee'};
+const VEH = new Set(['car','truck','bus','motorcycle','bicycle']);
+const cz = c => CZ[c] || c;
+
+const view = $('view'), vctx = view.getContext('2d');
+const proc = document.createElement('canvas'), pctx = proc.getContext('2d', {willReadFrequently:true});
+const video = document.createElement('video'); video.playsInline = true; video.muted = true;
+
+let model = null, running = false, usingFile = false, W = 640, H = 360;
+let tracks = [], nextId = 1, lastT = -1, frameT = 0, fps = 0;
+let gates = [null, null];            // {p:{x,y}, q:{x,y}} v normalizovaných souřadnicích 0..1
+let calib = {step:0, pts:[]};
+let night = false;
+const LUT = new Uint8ClampedArray(256);
+function buildLUT(g){ for(let i=0;i<256;i++) LUT[i] = 255*Math.pow(i/255, 1/g); }
+buildLUT(2.2);
+
+const status = s => $('status').textContent = s;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const nowT = () => usingFile ? video.currentTime : performance.now()/1000;
+
+/*LOGIC*/
+function segInter(a,b,c,d){
+  const r={x:b.x-a.x,y:b.y-a.y}, s={x:d.x-c.x,y:d.y-c.y};
+  const den=r.x*s.y-r.y*s.x; if(Math.abs(den)<1e-9) return null;
+  const qp={x:c.x-a.x,y:c.y-a.y};
+  const u=(qp.x*s.y-qp.y*s.x)/den, v=(qp.x*r.y-qp.y*r.x)/den;
+  return (u>=0&&u<=1&&v>=0&&v<=1) ? u : null;
+}
+function checkGates(tr,x0,y0,t0,x1,y1,t1){
+  if(!VEH.has(tr.cls)) return;
+  for(let g=0; g<2; g++){
+    if(!gates[g] || tr.cross[g]!==null) continue;
+    const G=gates[g], P={x:G.p.x*W,y:G.p.y*H}, Q={x:G.q.x*W,y:G.q.y*H};
+    const u=segInter({x:x0,y:y0},{x:x1,y:y1},P,Q);
+    if(u!==null) tr.cross[g]=t0+u*(t1-t0);
+  }
+  if(tr.cross[0]!==null && tr.cross[1]!==null && tr.speed===null){
+    const dist=parseFloat($('dist').value)||20, dt=Math.abs(tr.cross[1]-tr.cross[0]);
+    if(dt>0.05){
+      const v=dist/dt*3.6;
+      if(v<300){ tr.speed=v; logSpeed(tr, tr.cross[1]>tr.cross[0]?'A→B':'B→A'); }
+    }
+  }
+}
+function update(dets,t){
+  if(t < lastT-0.3){ tracks=[]; }          // video se zacyklilo / přetočilo
+  lastT=t;
+  const cand=[];
+  dets.forEach((d,di)=>{
+    const [x,y,w,h]=d.bbox, cx=x+w/2, cy=y+h;
+    tracks.forEach((tr,ti)=>{
+      if(tr.cls!==d.class) return;
+      const dt=t-tr.t, px=tr.x+tr.vx*dt, py=tr.y+tr.vy*dt;
+      const dist=Math.hypot(cx-px,cy-py);
+      if(dist < Math.max(w,h)+20) cand.push({di,ti,dist});
+    });
+  });
+  cand.sort((a,b)=>a.dist-b.dist);
+  const dU=new Set(), tU=new Set();
+  for(const c of cand){
+    if(dU.has(c.di)||tU.has(c.ti)) continue;
+    dU.add(c.di); tU.add(c.ti);
+    const d=dets[c.di], tr=tracks[c.ti], [x,y,w,h]=d.bbox, cx=x+w/2, cy=y+h, dt=t-tr.t;
+    if(dt>0){ tr.vx=0.5*tr.vx+0.5*(cx-tr.x)/dt; tr.vy=0.5*tr.vy+0.5*(cy-tr.y)/dt; }
+    checkGates(tr,tr.x,tr.y,tr.t,cx,cy,t);
+    tr.x=cx; tr.y=cy; tr.t=t; tr.bbox=d.bbox; tr.score=d.score;
+  }
+  tracks = tracks.filter(tr => t-tr.t < 1.0);
+  dets.forEach((d,di)=>{
+    if(dU.has(di)) return;
+    const [x,y,w,h]=d.bbox;
+    tracks.push({id:nextId++,cls:d.class,x:x+w/2,y:y+h,t,vx:0,vy:0,bbox:d.bbox,score:d.score,cross:[null,null],speed:null});
+  });
+}
+/*ENDLOGIC*/
+
+function logSpeed(tr, dir){
+  const ol=$('log'); if(ol.firstChild && ol.firstChild.style) ol.innerHTML='';
+  const li=document.createElement('li');
+  li.innerHTML=`${new Date().toLocaleTimeString('cs-CZ')} · ${cz(tr.cls)} · <b>${Math.round(tr.speed)} km/h</b> (${dir})`;
+  ol.prepend(li); while(ol.children.length>10) ol.lastChild.remove();
+}
+
+function applyNight(){
+  const img=pctx.getImageData(0,0,W,H), d=img.data;
+  for(let i=0;i<d.length;i+=4){ d[i]=LUT[d[i]]; d[i+1]=LUT[d[i+1]]; d[i+2]=LUT[d[i+2]]; }
+  pctx.putImageData(img,0,0);
+}
+
+function label(text,x,y,color){
+  vctx.font='bold 15px system-ui,sans-serif';
+  const w=vctx.measureText(text).width+8, yy=Math.max(18,y);
+  vctx.fillStyle=color; vctx.fillRect(x,yy-17,w,19);
+  vctx.fillStyle='#000'; vctx.fillText(text,x+4,yy-2);
+}
+function drawGate(g,name,color){
+  if(!g) return;
+  vctx.strokeStyle=color; vctx.lineWidth=3; vctx.beginPath();
+  vctx.moveTo(g.p.x*W,g.p.y*H); vctx.lineTo(g.q.x*W,g.q.y*H); vctx.stroke();
+  label('Brána '+name, g.p.x*W, g.p.y*H-4, color);
+}
+function render(){
+  requestAnimationFrame(render);
+  if(!running || video.readyState<2) return;
+  pctx.drawImage(video,0,0,W,H);
+  if(night) applyNight();
+  frameT=nowT();
+  vctx.drawImage(proc,0,0);
+  drawGate(gates[0],'A','#ff5a5a'); drawGate(gates[1],'B','#4aa3ff');
+  calib.pts.forEach(p=>{ vctx.fillStyle='#fff'; vctx.beginPath(); vctx.arc(p.x*W,p.y*H,6,0,7); vctx.fill(); });
+  for(const tr of tracks){
+    if(lastT-tr.t>0.35) continue;
+    const [x,y,w,h]=tr.bbox, veh=VEH.has(tr.cls);
+    const col = veh ? '#ffb020' : (tr.cls==='person' ? '#3ddc84' : '#35d0ff');
+    vctx.strokeStyle=col; vctx.lineWidth=3; vctx.strokeRect(x,y,w,h);
+    let txt=`${cz(tr.cls)} ${Math.round(tr.score*100)} %`;
+    if(veh) txt+=` #${tr.id}`;
+    if(tr.speed!==null) txt+=` · ${Math.round(tr.speed)} km/h`;
+    label(txt,x,y,col);
+    if(veh){ vctx.fillStyle=col; vctx.beginPath(); vctx.arc(tr.x,tr.y,5,0,7); vctx.fill(); }
+  }
+}
+
+async function detectLoop(){
+  let lastFrame=-1;
+  while(true){
+    if(!running || !model || video.readyState<2 || frameT===lastFrame){ await sleep(15); continue; }
+    lastFrame=frameT; const t=frameT, t0=performance.now();
+    let dets=[];
+    try{ dets=await model.detect(proc,20,0.35); }catch(e){ await sleep(200); continue; }
+    update(dets,t);
+    fps=0.8*fps+0.2*(1000/(performance.now()-t0));
+    const cnt={};
+    dets.forEach(d=>cnt[cz(d.class)]=(cnt[cz(d.class)]||0)+1);
+    const s=Object.entries(cnt).map(([k,v])=>`${k} ×${v}`).join(' · ');
+    $('chip').textContent=(s?'Vidím: '+s:'Nic nevidím')+`   (${fps.toFixed(1)} snímků/s)`;
+    await sleep(0);
+  }
+}
+
+function setSize(){
+  const vw=video.videoWidth||640, vh=video.videoHeight||360;
+  W=640; H=Math.round(640*vh/vw);
+  view.width=proc.width=W; view.height=proc.height=H;
+}
+async function startStream(){
+  try{
+    stopMedia(); usingFile=false;
+    const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}},audio:false});
+    video.srcObject=stream; await video.play(); setSize(); running=true; tracks=[];
+    status(model?'Kamera běží.':'Kamera běží, načítám model…');
+  }catch(e){ status('Kameru nelze spustit: '+e.message+' (stránka musí běžet na HTTPS a mít povolení kamery)'); }
+}
+function stopMedia(){
+  running=false;
+  if(video.srcObject){ video.srcObject.getTracks().forEach(t=>t.stop()); video.srcObject=null; }
+}
+$('bCam').onclick=startStream;
+$('file').onchange=async e=>{
+  const f=e.target.files[0]; if(!f) return;
+  stopMedia(); usingFile=true;
+  video.src=URL.createObjectURL(f); video.loop=true; video.playbackRate=0.5;
+  video.onloadedmetadata=()=>{ setSize(); };
+  try{ await video.play(); }catch(_){}
+  setSize(); running=true; tracks=[]; lastT=-1; status('Přehrávám video (zpomaleně ×0,5 kvůli přesnosti).');
+};
+
+// kalibrace
+const calMsg=['','Brána A: klepni na 1. bod čáry napříč silnicí','Brána A: klepni na 2. bod','Brána B: klepni na 1. bod','Brána B: klepni na 2. bod'];
+$('bCal').onclick=()=>{ calib={step:1,pts:[]}; gates=[null,null]; tracks.forEach(t=>{t.cross=[null,null];t.speed=null}); $('bCal').classList.add('on'); status(calMsg[1]); };
+$('bClr').onclick=()=>{ gates=[null,null]; calib={step:0,pts:[]}; $('bCal').classList.remove('on'); tracks.forEach(t=>{t.cross=[null,null];t.speed=null}); save(); status('Brány smazány.'); };
+view.addEventListener('pointerdown',e=>{
+  if(!calib.step) return;
+  const r=view.getBoundingClientRect();
+  calib.pts.push({x:(e.clientX-r.left)/r.width,y:(e.clientY-r.top)/r.height});
+  if(calib.pts.length===2) gates[0]={p:calib.pts[0],q:calib.pts[1]};
+  if(calib.pts.length===4){
+    gates[1]={p:calib.pts[2],q:calib.pts[3]};
+    calib={step:0,pts:[]}; $('bCal').classList.remove('on'); save();
+    status('Hotovo. Zkontroluj vzdálenost bran a nech projet auto.');
+  } else { calib.step++; status(calMsg[calib.step]); }
+});
+function save(){ try{ localStorage.setItem('oko',JSON.stringify({gates,dist:$('dist').value})); }catch(_){} }
+function load(){ try{ const o=JSON.parse(localStorage.getItem('oko')||'null'); if(o){ gates=o.gates||[null,null]; if(o.dist) $('dist').value=o.dist; } }catch(_){} }
+$('dist').onchange=save;
+
+// noc
+$('night').onchange=e=>night=e.target.checked;
+$('gam').oninput=e=>buildLUT(parseFloat(e.target.value));
+
+// model
+async function loadModel(){
+  model=null; status('Načítám model…');
+  try{ model=await cocoSsd.load({base:$('mdl').value}); status(running?'Model načten, detekuji.':'Model načten. Spusť kameru nebo nahraj video.'); }
+  catch(e){ status('Model se nepodařilo načíst: '+e.message); }
+}
+$('mdl').onchange=loadModel;
+
+load(); render(); detectLoop();
+if(window.cocoSsd) loadModel(); else status('Knihovny se nenačetly (chybí internet?).');
+</script>
+</body>
+</html>
