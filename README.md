@@ -15,3 +15,4 @@ Kamera funguje jen přes HTTPS. Rychlosti jsou orientační a nemají právní v
 - **v0.8** (`/v8/`): SPZ (OCR, zkušebně), rysy postav pro opakované rozpoznání a alarm e-mailem (mail.php).
 - **v0.9** (`/v9/`): režimy Řidič a Dohled; robustnější měření rychlosti projíždějících aut; zápis přestupků (rychlost, čára, protisměr) s fotem a videem.
 - **v0.10** (`/v10/`): Dohled pěšky/za jízdy, přestupky s přesným časem, GPS a adresou, směr jízdy, přejetí čar i při pohybu, pozorování vozidel, záložka Přehled funkcí.
+- **v0.11** (`/v11/`): semafor (červená/oranžová/zelená, jízda na červenou přes stop čáru), dopravní značky (omezení rychlosti OCR, STOP, dej přednost, hlavní silnice, zákaz vjezdu), varování řidiče.
